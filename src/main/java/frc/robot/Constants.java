@@ -6,13 +6,22 @@ import frc.robot.subsystems.SwerveModule.ModuleConfiguration;
 public class Constants {
     public static class Drivetrain {
 
+        public static class Hardware {
+            public static final double WHEEL_DIAMETER_METER = 0.1016;
+
+            public static final double DRIVE_SENSOR_TO_MECHANISM_RATIO = 40500.0 / 5760.0;
+
+            public static final double STEER_SENSOR_TO_MECHANISM_RATIO = 287.0 / 11.0;
+            public static final double STEER_ROTOR_TO_SENSOR_RATIO = 1.0;
+        }
+
         public static final double FB_LENGTH = 0.6985;
         public static final double LR_LENGTH = 0.6223;
 
-        public static ModuleConfiguration FL_CONFIG = new ModuleConfiguration();
-        public static ModuleConfiguration FR_CONFIG = new ModuleConfiguration();
-        public static ModuleConfiguration BL_CONFIG = new ModuleConfiguration();
-        public static ModuleConfiguration BR_CONFIG = new ModuleConfiguration();
+        public static final ModuleConfiguration FL_CONFIG = new ModuleConfiguration();
+        public static final ModuleConfiguration FR_CONFIG = new ModuleConfiguration();
+        public static final ModuleConfiguration BL_CONFIG = new ModuleConfiguration();
+        public static final ModuleConfiguration BR_CONFIG = new ModuleConfiguration();
 
         static {FL_CONFIG.moduleName = "Front Left";
             FL_CONFIG.index = 0;

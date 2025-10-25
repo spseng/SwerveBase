@@ -35,8 +35,8 @@ public class SwerveModule extends SubsystemBase {
         
         _steerMotorConfig.Feedback.FeedbackRemoteSensorID = encoderPort;
         _steerMotorConfig.Feedback.FeedbackSensorSource = FeedbackSensorSourceValue.RemoteCANcoder;
-        _steerMotorConfig.Feedback.SensorToMechanismRatio = 1.0;
-        _steerMotorConfig.Feedback.RotorToSensorRatio = 1.0;
+        _steerMotorConfig.Feedback.SensorToMechanismRatio = Constants.Drivetrain.Hardware.STEER_SENSOR_TO_MECHANISM_RATIO;
+        _steerMotorConfig.Feedback.RotorToSensorRatio = Constants.Drivetrain.Hardware.STEER_ROTOR_TO_SENSOR_RATIO;
 
         _steerMotor.getConfigurator().apply(_steerMotorConfig);
 
@@ -66,6 +66,10 @@ public class SwerveModule extends SubsystemBase {
 
     public SwerveModuleState getDesiredState() {
         return _desiredModuleState;
+    }
+
+    public SwerveModulePosition getPosition() {
+        return new SwerveModulePosition(_driveMotor.getPosition().getValue().in(Units.Radians), getSteerAngle());
     }
 
     public Translation2d getLocation() {
