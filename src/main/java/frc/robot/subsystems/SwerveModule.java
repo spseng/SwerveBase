@@ -19,7 +19,8 @@ public class SwerveModule extends SubsystemBase {
     private final TalonFX _steerMotor;
     private final TalonFX _driveMotor;
 
-    private final TalonFXConfiguration _steerMotorConfig = new TalonFXConfiguration();
+    private final TalonFXConfiguration _steerMotorConfig;
+    private final TalonFXConfiguration _driveMotorConfig;
 
     private final Translation2d _moduleLocation;
     private final int _moduleIndex;
@@ -29,13 +30,18 @@ public class SwerveModule extends SubsystemBase {
     public SwerveModule(int steerPort, int drivePort, int encoderPort, ModuleConfiguration config) {
         _steerMotor = new TalonFX(steerPort, config.canBus);
         _driveMotor = new TalonFX(drivePort, config.canBus);
-        
+
+        _steerMotorConfig = new TalonFXConfiguration();
         _steerMotorConfig.Feedback.FeedbackRemoteSensorID = encoderPort;
         _steerMotorConfig.Feedback.FeedbackSensorSource = FeedbackSensorSourceValue.RemoteCANcoder;
         _steerMotorConfig.Feedback.SensorToMechanismRatio = Constants.Drivetrain.Hardware.STEER_SENSOR_TO_MECHANISM_RATIO;
         _steerMotorConfig.Feedback.RotorToSensorRatio = Constants.Drivetrain.Hardware.STEER_ROTOR_TO_SENSOR_RATIO;
-
         _steerMotor.getConfigurator().apply(_steerMotorConfig);
+
+        _driveMotorConfig = new TalonFXConfiguration();
+        _driveMotorConfig.Feedback.SensorToMechanismRatio = Constants.Drivetrain.Hardware.DRIVE_SENSOR_TO_MECHANISM_RATIO;
+        _driveMotorConfig.Feedback.RotorToSensorRatio = Constants.Drivetrain.Hardware.DRIVE_ROTOR_TO_SENSOR_RATIO;
+        _driveMotor.getConfigurator().apply(_driveMotorConfig);
 
         _moduleLocation = config.position;
         _moduleIndex = config.index;
