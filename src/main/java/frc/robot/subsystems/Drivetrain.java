@@ -102,6 +102,12 @@ public class Drivetrain extends SubsystemBase {
         setRawSpeeds(robotRelativeSpeeds);
     }
 
+    public void setModuleStates(SwerveModuleState[] states) {
+        for(SwerveModule module : _modules) {
+            module.setState(states[module.getIndex()]);
+        }
+    }
+
     public void zeroIMU() {
         _yawOffset = _gyro.getYaw().getValueAsDouble() * Constants.Drivetrain.PIGEON_INVERTED;
         readIMU();
@@ -135,5 +141,16 @@ public class Drivetrain extends SubsystemBase {
 
     public Pose2d getPose() {
         return _currentPose;
+    }
+
+    public void resetPose(Pose2d pose) {
+        _odometry.resetPosition(getYaw(), new SwerveModulePosition[] {
+            new SwerveModulePosition(),
+            new SwerveModulePosition(),
+            new SwerveModulePosition(),
+            new SwerveModulePosition()
+        }, pose);
+        _currentPose = pose;
+        _previousPose = pose;
     }
 }

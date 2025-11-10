@@ -53,9 +53,11 @@ public class Constants {
         public static final double STEER_KP = 0.2;
         public static final double STEER_KI = 0.0;
         public static final double STEER_KD = 0.07;
+        public static final double STEER_PEAK_VOLTAGE = 12.0;
         
         public static final double DRIVE_KP = 0.2;
         public static final double DRIVE_KI = 0.0;
         public static final double DRIVE_KD = 0.07;
+        public static final double DRIVE_PEAK_VOLTAGE = 12.0;
     }
 }

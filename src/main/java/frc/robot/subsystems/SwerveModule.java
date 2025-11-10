@@ -1,10 +1,13 @@
 package frc.robot.subsystems;
 
+import static edu.wpi.first.units.Units.*;
+
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.FeedbackSensorSourceValue;
+import com.ctre.phoenix6.StatusCode;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.PositionDutyCycle;
-import com.ctre.phoenix6.controls.VelocityDutyCycle;
+import com.ctre.phoenix6.controls.PositionVoltage;
+import com.ctre.phoenix6.controls.VelocityVoltage;
 
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -21,6 +24,9 @@ public class SwerveModule extends SubsystemBase {
 
     private final TalonFXConfiguration _steerMotorConfig;
     private final TalonFXConfiguration _driveMotorConfig;
+
+    private final PositionVoltage _steerPositionVoltage = new PositionVoltage(0).withSlot(0);
+    private final VelocityVoltage _driveVelocityVoltage = new VelocityVoltage(0).withSlot(0);
 
     private final Translation2d _moduleLocation;
     private final int _moduleIndex;
@@ -39,7 +45,16 @@ public class SwerveModule extends SubsystemBase {
         _steerMotorConfig.Slot0.kP = Constants.Drivetrain.STEER_KP;
         _steerMotorConfig.Slot0.kI = Constants.Drivetrain.STEER_KI;
         _steerMotorConfig.Slot0.kD = Constants.Drivetrain.STEER_KD;
-        _steerMotor.getConfigurator().apply(_steerMotorConfig);
+        _steerMotorConfig.Voltage.withPeakForwardVoltage(Volts.of(Constants.Drivetrain.STEER_PEAK_VOLTAGE))
+            .withPeakReverseVoltage(Volts.of(-Constants.Drivetrain.STEER_PEAK_VOLTAGE));
+        StatusCode steerMotorStatus = StatusCode.StatusCodeNotInitialized;
+        for (int i = 0;i < 5;i++) {
+            steerMotorStatus = _steerMotor.getConfigurator().apply(_steerMotorConfig);
+            if (steerMotorStatus.isOK()) break;
+        }
+        if(!steerMotorStatus.isOK()) {
+            System.out.println("Failed to apply steer motor config for module " + config.moduleName + " after 5 attempts. Status: " + steerMotorStatus);
+        }
 
         _driveMotorConfig = new TalonFXConfiguration();
         _driveMotorConfig.Feedback.SensorToMechanismRatio = Constants.Drivetrain.Hardware.DRIVE_SENSOR_TO_MECHANISM_RATIO;
@@ -47,7 +62,16 @@ public class SwerveModule extends SubsystemBase {
         _driveMotorConfig.Slot0.kP = Constants.Drivetrain.DRIVE_KP;
         _driveMotorConfig.Slot0.kI = Constants.Drivetrain.DRIVE_KI;
         _driveMotorConfig.Slot0.kD = Constants.Drivetrain.DRIVE_KD;
-        _driveMotor.getConfigurator().apply(_driveMotorConfig);
+        _driveMotorConfig.Voltage.withPeakForwardVoltage(Volts.of(Constants.Drivetrain.DRIVE_PEAK_VOLTAGE))
+            .withPeakReverseVoltage(Volts.of(-Constants.Drivetrain.DRIVE_PEAK_VOLTAGE));
+        StatusCode driveMotorStatus = StatusCode.StatusCodeNotInitialized;
+        for (int i = 0;i < 5;i++) {
+            driveMotorStatus = _driveMotor.getConfigurator().apply(_driveMotorConfig);
+            if (driveMotorStatus.isOK()) break;
+        }
+        if(!driveMotorStatus.isOK()) {
+            System.out.println("Failed to apply drive motor config for module " + config.moduleName + " after 5 attempts. Status: " + driveMotorStatus);
+        }
 
         _moduleLocation = config.position;
         _moduleIndex = config.index;
@@ -62,12 +86,13 @@ public class SwerveModule extends SubsystemBase {
         );
         optimizedState.angle = optimizedState.angle.plus(_steerAngularOffset);
         optimizedState.optimize(getSteerAngle().minus(_steerAngularOffset));
+        double driveRotationsPerSecond = optimizedState.speedMetersPerSecond 
+            / (Constants.Drivetrain.Hardware.WHEEL_DIAMETER_METER * Math.PI);
 
         PositionDutyCycle steerRequest = new PositionDutyCycle(optimizedState.angle.getRadians());
         _steerMotor.setControl(steerRequest);
 
-        VelocityDutyCycle driveRequest = new VelocityDutyCycle(optimizedState.speedMetersPerSecond);
-        _driveMotor.setControl(driveRequest);
+        _driveMotor.setControl(_driveVelocityVoltage.withVelocity(driveRotationsPerSecond));
 
         _desiredModuleState = state;
     }
