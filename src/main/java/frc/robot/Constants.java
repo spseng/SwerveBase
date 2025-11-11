@@ -12,11 +12,11 @@ public class Constants {
         public static class Hardware {
             public static final double WHEEL_DIAMETER_METER = 0.1016;
 
-            public static final double DRIVE_SENSOR_TO_MECHANISM_RATIO = 40500.0 / 5760.0;
+            public static final double DRIVE_SENSOR_TO_MECHANISM_RATIO = 40500.0 / 5760.0; // around 7.03
             public static final double DRIVE_ROTOR_TO_SENSOR_RATIO = 1.0;
 
-            public static final double STEER_SENSOR_TO_MECHANISM_RATIO = 287.0 / 11.0;
-            public static final double STEER_ROTOR_TO_SENSOR_RATIO = 1.0;
+            public static final double STEER_SENSOR_TO_MECHANISM_RATIO = 1.0;
+            public static final double STEER_ROTOR_TO_SENSOR_RATIO = 287.0 / 11.0; // around 26.09
         }
 
         public static final double FB_LENGTH = 0.6985;
@@ -50,11 +50,16 @@ public class Constants {
             BR_CONFIG.encoderInverted = false;
             BR_CONFIG.encoderOffset = new Rotation2d(Math.PI * (1.0 / 2.0));}
         
+        public static final double STEER_KS = 0.25;
+        public static final double STEER_KV = 0.12;
+        public static final double STEER_KA = 0.01;
         public static final double STEER_KP = 0.2;
         public static final double STEER_KI = 0.0;
         public static final double STEER_KD = 0.07;
         public static final double STEER_PEAK_VOLTAGE = 12.0;
         
+        public static final double DRIVE_KS = 0.1;
+        public static final double DRIVE_KV = 0.12;
         public static final double DRIVE_KP = 0.2;
         public static final double DRIVE_KI = 0.0;
         public static final double DRIVE_KD = 0.07;
