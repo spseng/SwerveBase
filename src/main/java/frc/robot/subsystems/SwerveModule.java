@@ -168,6 +168,13 @@ public class SwerveModule extends SubsystemBase {
         );
     }
 
+    public SwerveModuleState getState() {
+        return new SwerveModuleState(
+            getDriveMetersPerSecond(),
+            getSteerAngle()
+        );
+    }
+
     public boolean isHealthy() {
         return _steerMotor.isAlive() && _driveMotor.isAlive() && _encoder.isConnected();
     }

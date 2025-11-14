@@ -6,6 +6,10 @@ import static edu.wpi.first.units.Units.Radians;
 import java.util.Optional;
 
 import com.ctre.phoenix6.hardware.Pigeon2;
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
@@ -93,6 +97,29 @@ public class Drivetrain extends SubsystemBase {
 
         _desiredSwerveStatePublisher = NetworkTableInstance.getDefault().getStructArrayTopic("DesiredSwerveStates", SwerveModuleState.struct).publish();
         _currentPosePublisher = NetworkTableInstance.getDefault().getStructArrayTopic("CurrentPose", Pose2d.struct).publish();
+
+        // -------------------------------------------------------------------------------------
+
+        RobotConfig config = null;
+        try{
+            config = RobotConfig.fromGUISettings();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        AutoBuilder.configure(
+            this::getPose,
+            this::resetPose,
+            this::getMeasuredRelativeSpeeds,
+            (speeds, feedforwards) -> setRobotRelativeSpeeds(speeds),
+            new PPHolonomicDriveController(
+                    new PIDConstants(5.0, 0.0, 0.0), // Translation PID constants
+                    new PIDConstants(5.0, 0.0, 0.0) // Rotation PID constants
+            ),
+            config,
+            () -> _isRedAlliance,
+            this
+        );
     }
 
     @Override
@@ -147,6 +174,17 @@ public class Drivetrain extends SubsystemBase {
         setRobotRelativeSpeeds(new ChassisSpeeds(0.0, 0.0, 0.0));
     }
 
+    public ChassisSpeeds getMeasuredRelativeSpeeds() {
+        if (_modules == null || _modules.length == 0) {
+            return new ChassisSpeeds();
+        }
+        SwerveModuleState[] states = new SwerveModuleState[_modules.length];
+        for (SwerveModule module : _modules) {
+            states[module.getIndex()] = module.getState();
+        }
+        return _kinematics.toChassisSpeeds(states);
+    }
+
     // =======================================================================================
 
     public void zeroIMU() {
@@ -188,14 +226,11 @@ public class Drivetrain extends SubsystemBase {
     }
 
     public void resetPose(Pose2d pose) {
-        _odometry.resetPosition(getYaw(), new SwerveModulePosition[] {
-            new SwerveModulePosition(),
-            new SwerveModulePosition(),
-            new SwerveModulePosition(),
-            new SwerveModulePosition()
-        }, pose);
+        _odometry.resetPose(pose);
         _currentPose = pose;
         _previousPose = pose;
+        _lastTime = Timer.getFPGATimestamp();
+        _headingTarget = pose.getRotation();
     }
 
     private double getDeltaT() {
