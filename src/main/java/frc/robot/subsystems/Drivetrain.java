@@ -12,6 +12,8 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -41,6 +43,9 @@ public class Drivetrain extends SubsystemBase {
     private final SwerveDriveOdometry _odometry;
 
     private final boolean _isRedAlliance;
+
+    StructArrayPublisher<SwerveModuleState> _desiredSwerveStatePublisher;
+    StructArrayPublisher<Pose2d> _currentPosePublisher;
 
     public Drivetrain() {
         _modules = new SwerveModule[4];
@@ -75,12 +80,16 @@ public class Drivetrain extends SubsystemBase {
 
         Optional<Alliance> alliance = DriverStation.getAlliance();
         _isRedAlliance = alliance.filter(value -> value == Alliance.Red).isPresent();
+
+        _desiredSwerveStatePublisher = NetworkTableInstance.getDefault().getStructArrayTopic("DesiredSwerveStates", SwerveModuleState.struct).publish();
+        _currentPosePublisher = NetworkTableInstance.getDefault().getStructArrayTopic("CurrentPose", Pose2d.struct).publish();
     }
 
     @Override
     public void periodic() {
         updateSpeeds(_desiredChassisSpeeds);
         updateOdometry();
+        readIMU();
     }
 
     private void updateSpeeds(ChassisSpeeds speeds) {
@@ -106,6 +115,7 @@ public class Drivetrain extends SubsystemBase {
         for(SwerveModule module : _modules) {
             module.setState(states[module.getIndex()]);
         }
+        _desiredSwerveStatePublisher.set(states);
     }
 
     public void zeroIMU() {
@@ -133,6 +143,8 @@ public class Drivetrain extends SubsystemBase {
 
         _previousPose = _currentPose;
         _currentPose = _odometry.getPoseMeters();
+
+        _currentPosePublisher.set(new Pose2d[]{_currentPose});
     }
 
     public double getVelocityMagnitude() {

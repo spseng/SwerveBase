@@ -7,20 +7,22 @@ package frc.robot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.commands.SingleSwerveTest;
-import frc.robot.subsystems.SwerveModule;
+import frc.robot.commands.Drive;
+import frc.robot.commands.ZeroIMU;
+import frc.robot.subsystems.Drivetrain;
 
 public class RobotContainer {
 	public static final CommandXboxController driver = new CommandXboxController(0);
 	public static final CommandXboxController operator = new CommandXboxController(1);
 
-	private SwerveModule _module;
-
+    Drivetrain _drivetrain;
 
 	public RobotContainer() {
-		_module = new SwerveModule(RobotMap.CAN.FL_STEER, RobotMap.CAN.FL_DRIVE, RobotMap.CAN.FL_ENCODER, Constants.Drivetrain.FL_CONFIG);
+        _drivetrain = new Drivetrain();
 
-		_module.setDefaultCommand(new SingleSwerveTest(_module));
+        _drivetrain.setDefaultCommand(new Drive(_drivetrain));
+
+        driver.b().onTrue(new ZeroIMU(_drivetrain));
 
 		configureBindings();
 	}

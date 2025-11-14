@@ -2,17 +2,22 @@ package frc.robot.subsystems;
 
 import static edu.wpi.first.units.Units.*;
 
+import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.FeedbackSensorSourceValue;
+import com.ctre.phoenix6.signals.InvertedValue;
+import com.ctre.phoenix6.signals.SensorDirectionValue;
 import com.ctre.phoenix6.StatusCode;
+import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.units.Units;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 import frc.robot.Constants;
@@ -21,16 +26,14 @@ public class SwerveModule extends SubsystemBase {
 
     private final TalonFX _steerMotor;
     private final TalonFX _driveMotor;
+    private final CANcoder _encoder;
 
-    private final TalonFXConfiguration _steerMotorConfig;
-    private final TalonFXConfiguration _driveMotorConfig;
-
-    private final VelocityVoltage _driveVelocityVoltage = new VelocityVoltage(0).withSlot(0);
+    private final PIDController _steerPositionSpeed;
+    private final VelocityVoltage _driveVelocityVoltage;
 
     private final Translation2d _moduleLocation;
     private final int _moduleIndex;
     private SwerveModuleState _desiredModuleState;
-    private Rotation2d _steerAngularOffset;
 
     // ======================================================================================
 
@@ -38,31 +41,24 @@ public class SwerveModule extends SubsystemBase {
         if(!config.canBus.equals("")) {
             _steerMotor = new TalonFX(steerPort, config.canBus);
             _driveMotor = new TalonFX(drivePort, config.canBus);
+            _encoder = new CANcoder(encoderPort, config.canBus);
         } else {
             _steerMotor = new TalonFX(steerPort);
             _driveMotor = new TalonFX(drivePort);
+            _encoder = new CANcoder(encoderPort);
         }
 
         // -------------------------------------------------------------------------------------
 
-        _steerMotorConfig = new TalonFXConfiguration();
-        _steerMotorConfig.Feedback.FeedbackRemoteSensorID = encoderPort;
-        _steerMotorConfig.Feedback.FeedbackSensorSource = FeedbackSensorSourceValue.RemoteCANcoder;
-        _steerMotorConfig.Feedback.SensorToMechanismRatio = Constants.Drivetrain.Hardware.STEER_SENSOR_TO_MECHANISM_RATIO;
-        _steerMotorConfig.Feedback.RotorToSensorRatio = Constants.Drivetrain.Hardware.STEER_ROTOR_TO_SENSOR_RATIO;
-        _steerMotorConfig.MotionMagic.withMotionMagicCruiseVelocity(RotationsPerSecond.of(5))
-            .withMotionMagicAcceleration(RotationsPerSecondPerSecond.of(10))
-            .withMotionMagicJerk(RotationsPerSecondPerSecond.per(Second).of(100));
-        _steerMotorConfig.Slot0.kS = Constants.Drivetrain.STEER_KS;
-        _steerMotorConfig.Slot0.kV = Constants.Drivetrain.STEER_KV;
-        _steerMotorConfig.Slot0.kA = Constants.Drivetrain.STEER_KA;
-        _steerMotorConfig.Slot0.kP = Constants.Drivetrain.STEER_KP;
-        _steerMotorConfig.Slot0.kI = Constants.Drivetrain.STEER_KI;
-        _steerMotorConfig.Slot0.kD = Constants.Drivetrain.STEER_KD;
+        TalonFXConfiguration _steerMotorConfig = new TalonFXConfiguration();
+        switch(Constants.Drivetrain.STEER_INVERTED) {
+            case 1: _steerMotorConfig.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive; break;
+            case -1: _steerMotorConfig.MotorOutput.Inverted = InvertedValue.Clockwise_Positive; break;
+            default: _steerMotorConfig.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive; break;}
         _steerMotorConfig.Voltage.withPeakForwardVoltage(Volts.of(Constants.Drivetrain.STEER_PEAK_VOLTAGE))
             .withPeakReverseVoltage(Volts.of(-Constants.Drivetrain.STEER_PEAK_VOLTAGE));
 
-        _driveMotorConfig = new TalonFXConfiguration();
+        TalonFXConfiguration _driveMotorConfig = new TalonFXConfiguration();
         _driveMotorConfig.Feedback.SensorToMechanismRatio = Constants.Drivetrain.Hardware.DRIVE_SENSOR_TO_MECHANISM_RATIO;
         _driveMotorConfig.Feedback.RotorToSensorRatio = Constants.Drivetrain.Hardware.DRIVE_ROTOR_TO_SENSOR_RATIO;
         _driveMotorConfig.Slot0.kS = Constants.Drivetrain.DRIVE_KS;
@@ -72,26 +68,58 @@ public class SwerveModule extends SubsystemBase {
         _driveMotorConfig.Slot0.kD = Constants.Drivetrain.DRIVE_KD;
         _driveMotorConfig.Voltage.withPeakForwardVoltage(Volts.of(Constants.Drivetrain.DRIVE_PEAK_VOLTAGE))
             .withPeakReverseVoltage(Volts.of(-Constants.Drivetrain.DRIVE_PEAK_VOLTAGE));
+        
+        CANcoderConfiguration _encoderConfig = new CANcoderConfiguration();
+        switch(Constants.Drivetrain.STEER_INVERTED) {
+            case 1: _encoderConfig.MagnetSensor.SensorDirection = SensorDirectionValue.CounterClockwise_Positive; break;
+            case -1: _encoderConfig.MagnetSensor.SensorDirection = SensorDirectionValue.Clockwise_Positive; break;
+            default: _encoderConfig.MagnetSensor.SensorDirection = SensorDirectionValue.CounterClockwise_Positive; break;
+        }
+        _encoderConfig.MagnetSensor.MagnetOffset = config.encoderOffset.getRotations();
 
         // -------------------------------------------------------------------------------------
 
-        StatusCode steerMotorStatus = StatusCode.StatusCodeNotInitialized;
-        for (int i = 0;i < 5;i++) {
-            steerMotorStatus = _steerMotor.getConfigurator().apply(_steerMotorConfig);
-            if (steerMotorStatus.isOK()) break;}
-        if(!steerMotorStatus.isOK()) {System.out.println("Failed to apply steer motor config for module " + config.moduleName + " after 5 attempts. Status: " + steerMotorStatus);}
-        StatusCode driveMotorStatus = StatusCode.StatusCodeNotInitialized;
-        for (int i = 0;i < 5;i++) {
-            driveMotorStatus = _driveMotor.getConfigurator().apply(_driveMotorConfig);
-            if (driveMotorStatus.isOK()) break;}
-        if(!driveMotorStatus.isOK()) {System.out.println("Failed to apply drive motor config for module " + config.moduleName + " after 5 attempts. Status: " + driveMotorStatus);}
+        _steerPositionSpeed = new PIDController(Constants.Drivetrain.STEER_KP, Constants.Drivetrain.STEER_KI, Constants.Drivetrain.STEER_KD);
+        _steerPositionSpeed.enableContinuousInput(-0.5, 0.5);
+
+        _driveVelocityVoltage = new VelocityVoltage(0).withSlot(0);
+
+        // -------------------------------------------------------------------------------------
+
+        StatusCode steerMotorStatus = applyConfigWithRetry("Steer", config.moduleName, () -> _steerMotor.getConfigurator().apply(_steerMotorConfig));
+        if (!steerMotorStatus.isOK()) {
+            DriverStation.reportError(
+                "Failed to apply steer motor config for module " + config.moduleName + 
+                " after retries. Status: " + steerMotorStatus,
+                false
+            );
+        }
+        StatusCode driveMotorStatus = applyConfigWithRetry("Drive", config.moduleName, () -> _driveMotor.getConfigurator().apply(_driveMotorConfig));
+        if (!driveMotorStatus.isOK()) {
+            DriverStation.reportError(
+                "Failed to apply drive motor config for module " + config.moduleName + 
+                " after retries. Status: " + driveMotorStatus,
+                false
+            );
+        }
+        StatusCode encoderStatus = applyConfigWithRetry("Encoder", config.moduleName, () -> _encoder.getConfigurator().apply(_encoderConfig));
+        if (!encoderStatus.isOK()) {
+            DriverStation.reportError("Failed to apply encoder config for module " + config.moduleName + 
+                " after retries. Status: " + encoderStatus,
+                false
+            );
+        }
 
         // -------------------------------------------------------------------------------------
 
         _moduleLocation = config.position;
         _moduleIndex = config.index;
         _desiredModuleState = new SwerveModuleState(0.0, new Rotation2d(0.0));
-        _steerAngularOffset = config.encoderOffset;
+    }
+
+    @Override
+    public void periodic() {
+        updateState();
     }
 
     // ======================================================================================
@@ -99,28 +127,34 @@ public class SwerveModule extends SubsystemBase {
     public void setState(SwerveModuleState state) {
         SwerveModuleState optimizedState = new SwerveModuleState(
             state.speedMetersPerSecond, 
-            state.angle.plus(_steerAngularOffset)
+            state.angle
         );
-        optimizedState.angle = optimizedState.angle.plus(_steerAngularOffset);
-        optimizedState.optimize(getSteerAngle().minus(_steerAngularOffset));
-        double driveRotationsPerSecond = optimizedState.speedMetersPerSecond 
-            / (Constants.Drivetrain.Hardware.WHEEL_DIAMETER_METER * Math.PI);
-
-        _steerMotor.setPosition(optimizedState.angle.getRotations());
-
-        _driveMotor.setControl(_driveVelocityVoltage.withVelocity(driveRotationsPerSecond));
-
-        _desiredModuleState = state;
+        optimizedState.optimize(getSteerAngle());
+        
+        _desiredModuleState.speedMetersPerSecond = optimizedState.speedMetersPerSecond;
+        _desiredModuleState.angle = optimizedState.angle;
     }
 
     public void setState(double speedMetersPerSecond, Rotation2d angle) {
         setState(new SwerveModuleState(speedMetersPerSecond, angle));
     }
 
+    private void updateState() {
+        _steerMotor.set(_steerPositionSpeed.calculate(_encoder.getAbsolutePosition().getValueAsDouble(), _desiredModuleState.angle.getRotations()));
+
+        double driveRotationsPerSecond = _desiredModuleState.speedMetersPerSecond 
+            / (Constants.Drivetrain.Hardware.WHEEL_DIAMETER_METER * Math.PI);
+        _driveMotor.setControl(_driveVelocityVoltage.withVelocity(driveRotationsPerSecond));
+    }
+
     // ======================================================================================
 
     public Rotation2d getSteerAngle() {
-        return Rotation2d.fromRadians(_steerMotor.getPosition().getValue().in(Units.Radians)).minus(_steerAngularOffset);
+        return Rotation2d.fromRotations(_encoder.getAbsolutePosition().getValueAsDouble());
+    }
+
+    public double getDriveMetersPerSecond() {
+        return _driveMotor.getVelocity().getValueAsDouble();
     }
 
     public SwerveModuleState getDesiredState() {
@@ -144,12 +178,35 @@ public class SwerveModule extends SubsystemBase {
     
     // ======================================================================================
 
+    private StatusCode applyConfigWithRetry(String motorRole, String moduleName, java.util.concurrent.Callable<StatusCode> applier) {
+        final int maxAttempts = 5;
+        final long backoffMs = 25;
+        StatusCode status = StatusCode.StatusCodeNotInitialized;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                status = applier.call();
+            } catch (Exception e) {
+                DriverStation.reportError("Exception while applying " + motorRole + " config for module " + moduleName + ": " + e.getMessage(), false);
+                status = StatusCode.GeneralError;
+            }
+            if (status.isOK()) {
+                return status;
+            }
+            try {
+                Thread.sleep(backoffMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return status;
+    }
+
     public static class ModuleConfiguration {
         public String moduleName = "";
         public int index = 0;
         public Translation2d position = new Translation2d();
         public Rotation2d encoderOffset = new Rotation2d(0.0);
-        public boolean encoderInverted = false;
         public String canBus = "";
     }
 }
