@@ -1,22 +1,25 @@
 package frc.robot.subsystems;
 
+import static edu.wpi.first.units.Units.Degrees;
+import static edu.wpi.first.units.Units.Radians;
 
 import java.util.Optional;
 
 import com.ctre.phoenix6.hardware.Pigeon2;
 
 import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.RobotMap;
@@ -31,7 +34,6 @@ public class Drivetrain extends SubsystemBase {
     private final Pigeon2 _gyro;
 
     private ChassisSpeeds _desiredChassisSpeeds;
-    private SwerveModuleState[] _measuredStates;
     private SwerveModulePosition[] _measuredPositions;
     private Rotation2d _yaw;
 
@@ -43,9 +45,11 @@ public class Drivetrain extends SubsystemBase {
     private Pose2d _previousPose;
 
     private final SwerveDriveKinematics _kinematics;
-    private final SwerveDriveOdometry _odometry;
+    private final SwerveDrivePoseEstimator _odometry;
 
     private final boolean _isRedAlliance;
+
+    private double _lastTime;
 
     StructArrayPublisher<SwerveModuleState> _desiredSwerveStatePublisher;
     StructArrayPublisher<Pose2d> _currentPosePublisher;
@@ -58,14 +62,16 @@ public class Drivetrain extends SubsystemBase {
         _modules[BR_IDX] = new SwerveModule(RobotMap.CAN.BR_STEER, RobotMap.CAN.BR_DRIVE, RobotMap.CAN.BR_ENCODER, Constants.Drivetrain.BR_CONFIG);
         _gyro = new Pigeon2(RobotMap.CAN.PIGEON);
 
+        // -------------------------------------------------------------------------------------
+
         _desiredChassisSpeeds = new ChassisSpeeds(0.0, 0.0, 0.0);
-        _measuredStates = new SwerveModuleState[4];
         _measuredPositions = new SwerveModulePosition[4];
         _yaw = new Rotation2d(0.0);
 
         _yawOffset = _gyro.getYaw().getValueAsDouble() * Constants.Drivetrain.PIGEON_INVERTED;
-        _headingTarget = new Rotation2d(0.0);
-        _headingController = new PIDController(0.4, 0.0, 0.01);
+        _headingTarget = Rotation2d.fromDegrees(_yawOffset);
+        _headingController = new PIDController(Constants.Drivetrain.HEADING_KP, Constants.Drivetrain.HEADING_KI, Constants.Drivetrain.HEADING_KD);
+        _headingController.enableContinuousInput(-180.0, 180.0);
 
         _currentPose = new Pose2d();
         _previousPose = new Pose2d();
@@ -76,15 +82,14 @@ public class Drivetrain extends SubsystemBase {
             _modules[BL_IDX].getLocation(),
             _modules[BR_IDX].getLocation());
 
-        _odometry = new SwerveDriveOdometry(_kinematics, getYaw(), new SwerveModulePosition[] {
-            new SwerveModulePosition(),
-            new SwerveModulePosition(),
-            new SwerveModulePosition(),
-            new SwerveModulePosition()
-        });
+        _odometry = new SwerveDrivePoseEstimator(_kinematics, _headingTarget, _measuredPositions, _currentPose);
+
+        // -------------------------------------------------------------------------------------
 
         Optional<Alliance> alliance = DriverStation.getAlliance();
         _isRedAlliance = alliance.filter(value -> value == Alliance.Red).isPresent();
+
+        _lastTime = Timer.getFPGATimestamp();
 
         _desiredSwerveStatePublisher = NetworkTableInstance.getDefault().getStructArrayTopic("DesiredSwerveStates", SwerveModuleState.struct).publish();
         _currentPosePublisher = NetworkTableInstance.getDefault().getStructArrayTopic("CurrentPose", Pose2d.struct).publish();
@@ -96,6 +101,8 @@ public class Drivetrain extends SubsystemBase {
         updateOdometry();
         readIMU();
     }
+
+    // =======================================================================================
 
     private void updateSpeeds(ChassisSpeeds speeds) {
         if(speeds == null) {
@@ -114,6 +121,9 @@ public class Drivetrain extends SubsystemBase {
     }
 
     public void setFieldRelativeSpeeds(ChassisSpeeds fieldRelativeSpeeds) {
+        _headingTarget = _headingTarget.plus(Rotation2d.fromRadians(fieldRelativeSpeeds.omegaRadiansPerSecond * getDeltaT()));
+        double headingCorrectionDegrees = _headingController.calculate(getYaw().getDegrees(), _headingTarget.getDegrees());
+        fieldRelativeSpeeds.omegaRadiansPerSecond += Radians.convertFrom(headingCorrectionDegrees, Degrees);
         ChassisSpeeds robotRelativeSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
             fieldRelativeSpeeds,
             getYaw()
@@ -137,6 +147,8 @@ public class Drivetrain extends SubsystemBase {
         setRobotRelativeSpeeds(new ChassisSpeeds(0.0, 0.0, 0.0));
     }
 
+    // =======================================================================================
+
     public void zeroIMU() {
         _yawOffset = _gyro.getYaw().getValueAsDouble() * Constants.Drivetrain.PIGEON_INVERTED;
         readIMU();
@@ -152,21 +164,23 @@ public class Drivetrain extends SubsystemBase {
         return _yaw;
     }
 
+    // =======================================================================================
+
     public void updateOdometry() {
         for (SwerveModule module : _modules) {
             _measuredPositions[module.getIndex()] = module.getPosition();
         }
 
-        _odometry.update(getYaw(), _measuredPositions);
+        _odometry.updateWithTime(Timer.getFPGATimestamp(), getYaw(), _measuredPositions);
 
         _previousPose = _currentPose;
-        _currentPose = _odometry.getPoseMeters();
+        _currentPose = _odometry.getEstimatedPosition();
 
         _currentPosePublisher.set(new Pose2d[]{_currentPose});
     }
 
     public double getVelocityMagnitude() {
-        return (_currentPose.getTranslation().getDistance(_previousPose.getTranslation())) * Constants.TICK_PER_SECOND;
+        return (_currentPose.getTranslation().getDistance(_previousPose.getTranslation())) * (1.0 / getDeltaT());
     }
 
     public Pose2d getPose() {
@@ -182,5 +196,12 @@ public class Drivetrain extends SubsystemBase {
         }, pose);
         _currentPose = pose;
         _previousPose = pose;
+    }
+
+    private double getDeltaT() {
+        double currentTime = Timer.getFPGATimestamp();
+        double dt = currentTime - _lastTime;
+        _lastTime = currentTime;
+        return dt;
     }
 }

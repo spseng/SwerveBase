@@ -15,12 +15,12 @@ public class Constants {
             public static final double DRIVE_SENSOR_TO_MECHANISM_RATIO = 40500.0 / 5760.0; // around 7.03
             public static final double DRIVE_ROTOR_TO_SENSOR_RATIO = 1.0;
 
-            public static final double STEER_SENSOR_TO_MECHANISM_RATIO = 1.0 / 4.0;
+            public static final double STEER_SENSOR_TO_MECHANISM_RATIO = 1.0 / 1.0;
             public static final double STEER_ROTOR_TO_SENSOR_RATIO = 287.0 / 11.0; // around 26.09
         }
 
-        public static final double FB_LENGTH = 0.6985;
-        public static final double LR_LENGTH = 0.6223;
+        public static final double FB_LENGTH = 0.66675;
+        public static final double LR_LENGTH = 0.66675;
 
         public static final double MAX_VELOCITY_METERS_PER_SECOND = 4.0;
 
@@ -52,13 +52,17 @@ public class Constants {
         public static final double STEER_KP = 1.8;
         public static final double STEER_KI = 0.0;
         public static final double STEER_KD = 0.02;
-        public static final double STEER_PEAK_VOLTAGE = 16.0;
+        public static final double STEER_PEAK_VOLTAGE = 14.0;
         
         public static final double DRIVE_KS = 0.1;
         public static final double DRIVE_KV = 0.12;
         public static final double DRIVE_KP = 0.2;
         public static final double DRIVE_KI = 0.0;
         public static final double DRIVE_KD = 0.07;
-        public static final double DRIVE_PEAK_VOLTAGE = 1.0;
+        public static final double DRIVE_PEAK_VOLTAGE = 14.0;
+
+        public static final double HEADING_KP = 0.4;
+        public static final double HEADING_KI = 0.0;
+        public static final double HEADING_KD = 0.01;
     }
 }
