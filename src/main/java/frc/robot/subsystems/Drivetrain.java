@@ -1,8 +1,5 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Degrees;
-import static edu.wpi.first.units.Units.Radians;
-
 import java.util.Optional;
 
 import com.ctre.phoenix6.hardware.Pigeon2;
@@ -238,6 +235,7 @@ public class Drivetrain extends SubsystemBase {
 
     public void zeroIMU() {
         _headingZero = _gyro.getRotation2d();
+        _headingTarget = new Rotation2d(0.0);
     }
 
     public Rotation2d getHeading() {
