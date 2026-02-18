@@ -41,20 +41,19 @@ public class Constants {
         static {FL_CONFIG.moduleName = "Front Left";
             FL_CONFIG.index = 0;
             FL_CONFIG.position = new Translation2d(FB_LENGTH / 2, LR_LENGTH / 2); // +,+
-            FL_CONFIG.encoderOffset = Rotation2d.fromRotations(-0.3901);}
-        static {FR_CONFIG.moduleName = "Front Right";
+            FL_CONFIG.encoderOffset = Rotation2d.fromRotations(0.2302);}
+        static {FR_CONFIG.moduleName = "Front Right";  
             FR_CONFIG.index = 1;
             FR_CONFIG.position = new Translation2d(FB_LENGTH / 2, -LR_LENGTH / 2); // +,-
-            FR_CONFIG.encoderOffset = Rotation2d.fromRotations(0.229);}
+            FR_CONFIG.encoderOffset = Rotation2d.fromRotations(0.0);}
         static {BL_CONFIG.moduleName = "Back Left";
             BL_CONFIG.index = 2;
             BL_CONFIG.position = new Translation2d(-FB_LENGTH / 2, LR_LENGTH / 2); // -,+
-            BL_CONFIG.encoderOffset = Rotation2d.fromRotations(-0.260);}
+            BL_CONFIG.encoderOffset = Rotation2d.fromRotations(0.0);}
         static {BR_CONFIG.moduleName = "Back Right";
             BR_CONFIG.index = 3;
             BR_CONFIG.position = new Translation2d(-FB_LENGTH / 2, -LR_LENGTH / 2); // -,-
-            BR_CONFIG.encoderOffset = Rotation2d.fromRotations(-0.400);}
-
+            BR_CONFIG.encoderOffset = Rotation2d.fromRotations(0.0);}
         public static final double STEER_KP = 1.8;
         public static final double STEER_KI = 0.0;
         public static final double STEER_KD = 0.02;
